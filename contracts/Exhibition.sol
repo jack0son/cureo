@@ -63,12 +63,14 @@ contract CureoExhibition is Ownable {
         uint256 price
     ) external payable {
         // can use >= because controller contract will refund the payment
-        require(msg.value >= price, "exact payment required");
+        require(msg.value >= price, "insufficient payment");
 
         OfferController offerController = new OfferController{
         salt: _create2Salt(salt, sellerAddress, tokenAddress, tokenID, price)
         }();
 
+        // buy parameters must match offer parameters used to create offer address for execution
+        // on the OfferController to succeed
         if (!_execute(offerController, tokenAddress, 0, abi.encodeWithSelector(IERC721.transferFrom.selector,
             address(offerController),   // from
             msg.sender,                 // to
