@@ -12,14 +12,14 @@ import {
 } from "ethers/lib/utils";
 import { Contract } from "typechain";
 import { BigNumberish } from "ethers";
+const NFT = require("../artifacts/contracts/NFT.sol/NFT.json");
+const CureoExhibition = require("../artifacts/contracts/Exhibition.sol/CureoExhibition.json");
+const OfferController = require("../artifacts/contracts/Exhibition.sol/OfferController.json");
+const hardhat = require("hardhat");
 
 const { deployContract, MockProvider, solidity } = require("ethereum-waffle");
 chai.use(solidity);
 const { expect } = chai;
-
-const CureoExhibition = require("../artifacts/contracts/Exhibition.sol/CureoExhibition.json");
-const OfferController = require("../artifacts/contracts/Exhibition.sol/OfferController.json");
-const NFT = require("../artifacts/contracts/NFT.sol/NFT.json");
 
 const ethStr = (val: BigNumberish) => `${formatEther(val)} ETH`;
 
@@ -53,6 +53,8 @@ const calculateOfferAddress = (
     keccak256(OfferController.bytecode)
   );
 
+const defaultGasLimit = 1000000;
+
 describe("CureoExhibition", () => {
   const [curatorWallet, nftAdmin, sellerWallet, buyerWallet] =
     new MockProvider().getWallets();
@@ -63,6 +65,13 @@ describe("CureoExhibition", () => {
   beforeEach(async () => {
     exhibitionInstance = await deployContract(curatorWallet, CureoExhibition);
     nftInstance = await deployContract(nftAdmin, NFT);
+
+    // const factory = await hardhat.ethers.getContractFactory("NFT");
+    // const nftInstance = await factory.deploy();
+
+    console.log("Waiting contracts deployed...");
+    await Promise.all([exhibitionInstance.deployed(), nftInstance.deployed()]);
+    console.log("DEPLOYED");
 
     // await token.connect(curatorWallet).deposit({ value: 1e9 });
   });
@@ -97,100 +106,113 @@ describe("CureoExhibition", () => {
 
       expect(offerAddress).to.be.equal(expectedOfferAddress);
     });
-  });
 
-  it("buyer should be able to purchase the nft", async () => {
-    // const entropy = getRandomID();
-    // const salt = formatBytes32String(entropy.toString());
-    const salt = formatBytes32String("1");
+    it("buyer should be able to purchase the nft", async () => {
+      // const entropy = getRandomID();
+      // const salt = formatBytes32String(entropy.toString());
+      const salt = formatBytes32String("1");
 
-    const sellerAddress = sellerWallet.address;
-    const tokenAddress = nftInstance.address;
-    const tokenID = 12412;
-    const price = 5 * ETH;
+      const sellerAddress = sellerWallet.address;
+      const tokenAddress = nftInstance.address;
+      const tokenID = 12412;
+      const price = 5 * ETH;
 
-    // give seller a test nft
-    await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
+      // give seller a test nft
+      await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
 
-    // create offer (curator)
-    const offerAddress = await exhibitionInstance.offerAddress(
-      salt,
-      sellerAddress,
-      tokenAddress,
-      tokenID,
-      price
-    );
+      // create offer (curator)
+      const offerAddress = await exhibitionInstance.offerAddress(
+        salt,
+        sellerAddress,
+        tokenAddress,
+        tokenID,
+        price
+      );
 
-    console.log(`Accepting exhibition offer at ${offerAddress}`);
+      console.log(`Accepting exhibition offer at ${offerAddress}`);
 
-    // accept the exhibition offer (seller)
-    await nftInstance
-      .connect(nftAdmin)
-      .transferFrom(sellerAddress, offerAddress, tokenID);
+      // accept the exhibition offer (seller)
+      let tx = await nftInstance
+        .connect(sellerWallet)
+        .transferFrom(sellerAddress, offerAddress, tokenID, {
+          gasLimit: defaultGasLimit,
+        });
 
-    const sellerInitialBalance = await sellerWallet.getBalance();
-    console.log(
-      `Seller's initial balance: ${ethStr(sellerInitialBalance.toString())}`
-    );
-    console.log(`Purchasing offer at ${offerAddress}`);
+      await tx.wait();
 
-    // purchase nft (buyer)
-    await exhibitionInstance
-      .connect(buyerWallet)
-      .buy(salt, sellerAddress, tokenAddress, tokenID, price, {
-        value: price,
-        gasLimit: 1000000,
-      });
+      expect(await nftInstance.ownerOf(tokenID)).to.equal(offerAddress);
 
-    const owner = nftInstance.ownerOf(tokenID);
-    expect(owner).to.equal(buyerWallet.address);
+      const sellerInitialBalance = await sellerWallet.getBalance();
+      console.log(
+        `Seller's initial balance: ${ethStr(sellerInitialBalance.toString())}`
+      );
+      console.log(`Purchasing offer at ${offerAddress}`);
 
-    const sellerNewBalance = await sellerWallet.getBalance();
-    const diff = sellerNewBalance.sub(sellerInitialBalance);
-    console.log(`Seller's new balance: ${ethStr(sellerNewBalance.toString())}`);
-    console.log(`Difference ${ethStr(diff)}`);
-  });
+      // purchase nft (buyer)
+      tx = await exhibitionInstance
+        .connect(buyerWallet)
+        .buy(salt, sellerAddress, tokenAddress, tokenID, price, {
+          value: price,
+          gasLimit: 1000000,
+        });
 
-  it("seller should be able to refund the nft", async () => {
-    // const entropy = getRandomID();
-    // const salt = formatBytes32String(entropy.toString());
-    const salt = formatBytes32String("1");
+      await tx.wait();
 
-    const sellerAddress = sellerWallet.address;
-    const tokenAddress = nftInstance.address;
-    const tokenID = 12412;
-    const price = 5 * ETH;
+      const owner = await nftInstance.ownerOf(tokenID);
+      expect(owner).to.equal(buyerWallet.address);
 
-    // give seller a test nft
-    await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
+      const sellerNewBalance = await sellerWallet.getBalance();
+      const diff = sellerNewBalance.sub(sellerInitialBalance);
+      console.log(
+        `Seller's new balance: ${ethStr(sellerNewBalance.toString())}`
+      );
+      console.log(`Difference ${ethStr(diff)}`);
+    });
 
-    // create offer (curator)
-    const offerAddress = await exhibitionInstance.offerAddress(
-      salt,
-      sellerAddress,
-      tokenAddress,
-      tokenID,
-      price
-    );
+    it("seller should be able to refund the nft", async () => {
+      // const entropy = getRandomID();
+      // const salt = formatBytes32String(entropy.toString());
+      const salt = formatBytes32String("1");
 
-    console.log(`Accepting exhibition offer at ${offerAddress}`);
+      const sellerAddress = sellerWallet.address;
+      const tokenAddress = nftInstance.address;
+      const tokenID = 12412;
+      const price = 5 * ETH;
 
-    // accept the exhibition offer (seller)
-    await nftInstance
-      .connect(nftAdmin)
-      .transferFrom(sellerAddress, offerAddress, tokenID);
+      // give seller a test nft
+      let tx = await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
+      await tx.wait();
 
-    console.log(`Refunding offer at ${offerAddress}`);
+      // create offer (curator)
+      const offerAddress = await exhibitionInstance.offerAddress(
+        salt,
+        sellerAddress,
+        tokenAddress,
+        tokenID,
+        price
+      );
 
-    // refund the nft (seller)
-    await exhibitionInstance
-      .connect(buyerWallet)
-      .refund(salt, sellerAddress, tokenAddress, tokenID, price, {
-        gasLimit: 1000000,
-      });
+      console.log(`Accepting exhibition offer at ${offerAddress}`);
 
-    const owner = nftInstance.ownerOf(tokenID);
-    expect(owner).to.equal(sellerWallet.address);
+      // accept the exhibition offer (seller)
+      tx = await nftInstance
+        .connect(sellerWallet)
+        .transferFrom(sellerAddress, offerAddress, tokenID, { gasLimit: defaultGasLimit });
+      await tx.wait();
+
+      console.log(`Refunding offer at ${offerAddress}`);
+
+      // refund the nft (seller)
+      tx = await exhibitionInstance
+        .connect(buyerWallet)
+        .refund(salt, sellerAddress, tokenAddress, tokenID, price, {
+          gasLimit: 1000000,
+        });
+      await tx.wait();
+
+      const owner = await nftInstance.ownerOf(tokenID);
+      expect(owner).to.equal(sellerWallet.address);
+    });
   });
 });
 

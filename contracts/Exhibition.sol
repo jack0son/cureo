@@ -128,9 +128,6 @@ contract CureoExhibition is Ownable {
 
 // Allow exhibition contract to act as offer address
 contract OfferController {
-    error NotOwner();
-    error NotContract();
-
     address internal _owner;
 
     constructor() {
@@ -138,7 +135,7 @@ contract OfferController {
     }
 
     modifier onlyOwner() {
-        if (msg.sender != _owner) revert NotOwner();
+        if (msg.sender != _owner) revert("not owner");
         _;
     }
 
@@ -148,7 +145,7 @@ contract OfferController {
         uint256 value,
         bytes calldata data
     ) external onlyOwner returns (bool success, bytes memory returnData) {
-        if (callee.code.length == 0) revert NotContract();
+        if (callee.code.length == 0) revert("not contract");
 
         // solhint-disable-next-line avoid-low-level-calls
         (success, returnData) = callee.call{ value: value }(data);

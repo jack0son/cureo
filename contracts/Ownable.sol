@@ -3,9 +3,6 @@
 pragma solidity ^0.8.9;
 
 interface IOwnable {
-    error NotOwner();
-    error InvalidOwner();
-
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     function owner() external view returns (address);
@@ -22,13 +19,13 @@ abstract contract Ownable is IOwnable {
     }
 
     modifier onlyOwner() {
-        if (owner != msg.sender) revert NotOwner();
+        if (owner != msg.sender) revert("not owner");
 
         _;
     }
 
     function transferOwnership(address newOwner) override external virtual onlyOwner {
-        if (newOwner == address(0)) revert InvalidOwner();
+        if (newOwner == address(0)) revert ("invalid owner");
 
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
