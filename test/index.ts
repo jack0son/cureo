@@ -25,7 +25,7 @@ const ETH = 1e6;
 // const getRandomID = () => id(getRandomInt(1e6).toString());
 
 describe("CureoExhibition", () => {
-  const [curatorWallet, nftAdmin, userWallet] = new MockProvider().getWallets();
+  const [curatorWallet, nftAdmin, sellerWallet] = new MockProvider().getWallets();
 
   let exhibitionContract: any;
   let nftContract: any;
@@ -43,7 +43,7 @@ describe("CureoExhibition", () => {
       // const salt = formatBytes32String(entropy.toString());
       const salt = formatBytes32String("1");
 
-      const sellerAddress = userWallet.address;
+      const sellerAddress = sellerWallet.address;
       const tokenAddress = nftContract.address;
       const tokenID = 12412;
       const price = 5 * ETH;
