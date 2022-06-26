@@ -15,7 +15,7 @@ import { Contract } from "typechain";
 import { BigNumber, BigNumberish } from "ethers";
 const NFT = require("../artifacts/contracts/NFT.sol/NFT.json");
 const CureoExhibition = require("../artifacts/contracts/Exhibition.sol/CureoExhibition.json");
-const OfferController = require("../artifacts/contracts/Exhibition.sol/OfferController.json");
+const ListingController = require("../artifacts/contracts/Exhibition.sol/ListingController.json");
 const hardhat = require("hardhat");
 
 const { deployContract, MockProvider, solidity } = require("ethereum-waffle");
@@ -29,7 +29,7 @@ const DAY = 60 * 60 * 24;
 // const getRandomInt = (max: number) => Math.floor(Math.random() * max);
 // const getRandomID = () => id(getRandomInt(1e6).toString());
 
-const calculateOfferAddress = (
+const calculateProposalAddress = (
   exhibitionContractAddress: string,
   salt: string,
   sellerAddress: string,
@@ -43,7 +43,7 @@ const calculateOfferAddress = (
       defaultAbiCoder.encode(
         ["bytes32", "bytes32", "address", "address", "uint256", "uint256"],
         [
-          keccak256(toUtf8Bytes("fixed-offer")),
+          keccak256(toUtf8Bytes("fixed-listing")),
           salt,
           sellerAddress,
           tokenAddress,
@@ -52,7 +52,7 @@ const calculateOfferAddress = (
         ]
       )
     ),
-    keccak256(OfferController.bytecode)
+    keccak256(ListingController.bytecode)
   );
 
 const defaultGasLimit = 1000000;
@@ -84,7 +84,7 @@ describe("CureoExhibition", () => {
       await deployContracts(0, DAY * 4);
     });
 
-    it("should generate offer address", async () => {
+    it("should generate listing address", async () => {
       // const entropy = getRandomID();
       // const salt = formatBytes32String(entropy.toString());
       const salt = formatBytes32String("1");
@@ -94,7 +94,7 @@ describe("CureoExhibition", () => {
       const tokenID = 12412;
       const price = parseEther("5");
 
-      const expectedOfferAddress = calculateOfferAddress(
+      const expectedListingAddress = calculateProposalAddress(
         exhibitionInstance.address,
         salt,
         sellerAddress,
@@ -103,7 +103,7 @@ describe("CureoExhibition", () => {
         price
       );
 
-      const offerAddress = await exhibitionInstance.offerAddress(
+      const listingAddress = await exhibitionInstance.listingAddress(
         salt,
         sellerAddress,
         tokenAddress,
@@ -111,7 +111,7 @@ describe("CureoExhibition", () => {
         price
       );
 
-      expect(offerAddress).to.be.equal(expectedOfferAddress);
+      expect(listingAddress).to.be.equal(expectedListingAddress);
     });
 
     it("buyer should be able to purchase the nft", async () => {
@@ -127,8 +127,8 @@ describe("CureoExhibition", () => {
       // give seller a test nft
       await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
 
-      // create offer (curator)
-      const offerAddress = await exhibitionInstance.offerAddress(
+      // create listing (curator)
+      const listingAddress = await exhibitionInstance.listingAddress(
         salt,
         sellerAddress,
         tokenAddress,
@@ -137,12 +137,12 @@ describe("CureoExhibition", () => {
       );
 
       console.log(`NFT owner originally ${await nftInstance.ownerOf(tokenID)}`);
-      console.log(`Accepting exhibition offer at ${offerAddress}`);
+      console.log(`Accepting exhibition listing at ${listingAddress}`);
 
-      // accept the exhibition offer (seller)
+      // accept the exhibition listing (seller)
       let tx = await nftInstance
         .connect(sellerWallet)
-        .transferFrom(sellerAddress, offerAddress, tokenID, {
+        .transferFrom(sellerAddress, listingAddress, tokenID, {
           gasLimit: defaultGasLimit,
         });
 
@@ -151,13 +151,13 @@ describe("CureoExhibition", () => {
       console.log(
         `NFT owner after accepting ${await nftInstance.ownerOf(tokenID)}`
       );
-      expect(await nftInstance.ownerOf(tokenID)).to.equal(offerAddress);
+      expect(await nftInstance.ownerOf(tokenID)).to.equal(listingAddress);
 
       const sellerInitialBalance = await sellerWallet.getBalance();
       console.log(
         `Seller's initial balance: ${ethStr(sellerInitialBalance.toString())}`
       );
-      console.log(`Purchasing offer at ${offerAddress}`);
+      console.log(`Purchasing listing at ${listingAddress}`);
 
       // start the sale
       await exhibitionInstance.connect(curatorWallet).start();
@@ -203,8 +203,8 @@ describe("CureoExhibition", () => {
       let tx = await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
       await tx.wait();
 
-      // create offer (curator)
-      const offerAddress = await exhibitionInstance.offerAddress(
+      // create listing (curator)
+      const listingAddress = await exhibitionInstance.listingAddress(
         salt,
         sellerAddress,
         tokenAddress,
@@ -212,17 +212,17 @@ describe("CureoExhibition", () => {
         price
       );
 
-      console.log(`Accepting exhibition offer at ${offerAddress}`);
+      console.log(`Accepting exhibition listing at ${listingAddress}`);
 
-      // accept the exhibition offer (seller)
+      // accept the exhibition listing (seller)
       tx = await nftInstance
         .connect(sellerWallet)
-        .transferFrom(sellerAddress, offerAddress, tokenID, {
+        .transferFrom(sellerAddress, listingAddress, tokenID, {
           gasLimit: defaultGasLimit,
         });
       await tx.wait();
 
-      console.log(`Refunding offer at ${offerAddress}`);
+      console.log(`Refunding listing at ${listingAddress}`);
 
       // refund the nft (seller)
       tx = await exhibitionInstance
@@ -256,8 +256,8 @@ describe("CureoExhibition", () => {
       // give seller a test nft
       await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
 
-      // create offer (curator)
-      const offerAddress = await exhibitionInstance.offerAddress(
+      // create listing (curator)
+      const listingAddress = await exhibitionInstance.listingAddress(
         salt,
         sellerAddress,
         tokenAddress,
@@ -266,12 +266,12 @@ describe("CureoExhibition", () => {
       );
 
       console.log(`NFT owner originally ${await nftInstance.ownerOf(tokenID)}`);
-      console.log(`Accepting exhibition offer at ${offerAddress}`);
+      console.log(`Accepting exhibition listing at ${listingAddress}`);
 
-      // accept the exhibition offer (seller)
+      // accept the exhibition listing (seller)
       let tx = await nftInstance
         .connect(sellerWallet)
-        .transferFrom(sellerAddress, offerAddress, tokenID, {
+        .transferFrom(sellerAddress, listingAddress, tokenID, {
           gasLimit: defaultGasLimit,
         });
 
@@ -280,7 +280,7 @@ describe("CureoExhibition", () => {
       console.log(
         `NFT owner after accepting ${await nftInstance.ownerOf(tokenID)}`
       );
-      expect(await nftInstance.ownerOf(tokenID)).to.equal(offerAddress);
+      expect(await nftInstance.ownerOf(tokenID)).to.equal(listingAddress);
 
       // start the sale
       await exhibitionInstance.connect(curatorWallet).start();
@@ -291,7 +291,7 @@ describe("CureoExhibition", () => {
           curatorInitialBalance.toString()
         )}`
       );
-      console.log(`Purchasing offer at ${offerAddress}`);
+      console.log(`Purchasing listing at ${listingAddress}`);
 
 
       // purchase nft (buyer)
