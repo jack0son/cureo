@@ -11,12 +11,11 @@ import {
   formatEther,
   parseEther,
 } from "ethers/lib/utils";
-import { Contract } from "typechain";
 import { BigNumber, BigNumberish } from "ethers";
 const NFT = require("../artifacts/contracts/NFT.sol/NFT.json");
 const CureoExhibition = require("../artifacts/contracts/Exhibition.sol/CureoExhibition.json");
 const OfferController = require("../artifacts/contracts/Exhibition.sol/OfferController.json");
-const hardhat = require("hardhat");
+// const hardhat = require("hardhat");
 
 const { deployContract, MockProvider, solidity } = require("ethereum-waffle");
 chai.use(solidity);
@@ -56,19 +55,44 @@ const calculateOfferAddress = (
   );
 
 const defaultGasLimit = 1000000;
+const defaultStartFuture = DAY;
 
 describe("CureoExhibition", () => {
+  const provider = new MockProvider();
   const [curatorWallet, nftAdmin, sellerWallet, buyerWallet] =
-    new MockProvider().getWallets();
+    provider.getWallets();
 
   let exhibitionInstance: any;
   let nftInstance: any;
 
-  const deployContracts = async (commission: number, salePeriod: number) => {
-    exhibitionInstance = await deployContract(curatorWallet, CureoExhibition, [
-      commission,
-      salePeriod,
-    ]);
+  async function getBlockTime(): Promise<number> {
+    const bn = await provider.getBlockNumber();
+    const block = await provider.getBlock(bn);
+    return block.timestamp;
+  }
+
+  async function elapseTime(time: number) {
+    const now = await getBlockTime();
+    await provider.send("evm_setNextBlockTimestamp", [now + time]);
+    await provider.send("evm_mine");
+  }
+
+  const deployContracts = async (
+    commission: number,
+    startTime: number,
+    salePeriod: number
+  ) => {
+    if (startTime === 0) {
+      console.log("USE DEFAULT");
+      startTime = (await getBlockTime()) + defaultStartFuture;
+    }
+
+    exhibitionInstance = await deployContract(
+      curatorWallet,
+      CureoExhibition,
+      [commission, startTime, salePeriod],
+      { gasLimit: defaultGasLimit*6 }
+    );
     nftInstance = await deployContract(nftAdmin, NFT);
 
     // const factory = await hardhat.ethers.getContractFactory("NFT");
@@ -81,7 +105,7 @@ describe("CureoExhibition", () => {
 
   describe("exhibition contract basics", () => {
     beforeEach(async () => {
-      await deployContracts(0, DAY * 4);
+      await deployContracts(0, 0, DAY * 4);
     });
 
     it("should generate offer address", async () => {
@@ -93,6 +117,8 @@ describe("CureoExhibition", () => {
       const tokenAddress = nftInstance.address;
       const tokenID = 12412;
       const price = parseEther("5");
+
+      await deployContracts(0, 0, 3*DAY);
 
       const expectedOfferAddress = calculateOfferAddress(
         exhibitionInstance.address,
@@ -159,8 +185,8 @@ describe("CureoExhibition", () => {
       );
       console.log(`Purchasing offer at ${offerAddress}`);
 
-      // start the sale
-      await exhibitionInstance.connect(curatorWallet).start();
+      // wait for sale start
+      await elapseTime(defaultStartFuture);
 
       // purchase nft (buyer)
       tx = await exhibitionInstance
@@ -238,12 +264,11 @@ describe("CureoExhibition", () => {
   });
 
   describe("exhibition contract parameterised", () => {
-    it("cannot buy before sale opens", async () => {
-    });
+    it("cannot buy before sale opens", async () => {});
 
     it("curator should receive commission", async () => {
       const commissionPercent = 34;
-      await deployContracts(commissionPercent, DAY);
+      await deployContracts(commissionPercent, 0, DAY);
       // const entropy = getRandomID();
       // const salt = formatBytes32String(entropy.toString());
       const salt = formatBytes32String("1");
@@ -282,8 +307,8 @@ describe("CureoExhibition", () => {
       );
       expect(await nftInstance.ownerOf(tokenID)).to.equal(offerAddress);
 
-      // start the sale
-      await exhibitionInstance.connect(curatorWallet).start();
+      // wait for sale start
+      await elapseTime(defaultStartFuture);
 
       const curatorInitialBalance = await curatorWallet.getBalance();
       console.log(
@@ -292,7 +317,6 @@ describe("CureoExhibition", () => {
         )}`
       );
       console.log(`Purchasing offer at ${offerAddress}`);
-
 
       // purchase nft (buyer)
       tx = await exhibitionInstance

@@ -21,18 +21,14 @@ contract CureoExhibition is Ownable {
     uint256 salePeriod;
     bool started;
 
-    constructor(uint256 commissionPercentage_, uint256 salePeriod_) {
+    constructor(uint256 commissionPercentage_, uint256 startTime_, uint256 salePeriod_) {
         require(commissionPercent <= 100, "invalid commission");
+        require(startTime_ > block.timestamp, "must start in the future");
         require(salePeriod <= 604800, "4 weeks maximum sale period");
 
         commissionPercent = commissionPercentage_;
         salePeriod = salePeriod_;
         started = false;
-    }
-
-    function start() external onlyOwner {
-        startTime = block.timestamp;
-        started = true;
     }
 
     function offerAddress(
@@ -76,8 +72,8 @@ contract CureoExhibition is Ownable {
         uint256 price
     ) external payable {
         // can use >= because controller contract will refund the payment
-        require(started, "exhibition not started");
-        require(block.timestamp < startTime + salePeriod, "exhibition over");
+        require(block.timestamp >= startTime, "exhibition not started");
+        require(block.timestamp <= startTime + salePeriod, "exhibition over");
         require(msg.value >= price, "insufficient payment");
 
         OfferController offerController = new OfferController{
@@ -109,7 +105,7 @@ contract CureoExhibition is Ownable {
     // todo: rename to reclaim
     function refund(bytes32 salt, address sellerAddress, address tokenAddress, uint256 tokenID, uint256 price)
     external {
-        require(!started || block.timestamp > startTime + salePeriod, "exhibition in progress");
+        require(block.timestamp >= startTime && block.timestamp <= startTime + salePeriod, "exhibition in progress");
 
         // instantiate controller contract to offerAddress address
         OfferController offerController = new OfferController{
