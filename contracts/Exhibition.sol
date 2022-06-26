@@ -13,7 +13,7 @@ contract CureoExhibition is Ownable {
     // 2. comission
 
     // Prefix command for differentiating between future kinds of listings
-    bytes32 internal constant CMD_OFFER = keccak256('offer');
+    bytes32 internal constant CMD_FIXED_OFFER = keccak256('fixed-offer');
 
     uint256 commissionBIPS;
 
@@ -40,7 +40,7 @@ contract CureoExhibition is Ownable {
         uint256 tokenID,
         uint256 price
     ) internal view returns (bytes32)  {
-        return keccak256(abi.encode(abi.encode(CMD_OFFER, salt, sellerAddress, tokenAddress, tokenID, price)));
+        return keccak256(abi.encode(abi.encode(CMD_FIXED_OFFER, salt, sellerAddress, tokenAddress, tokenID, price)));
     }
 
     // _execute allows the Exhibition contract to call arbitrary contract code at the offerAddress.

@@ -2,7 +2,6 @@
   "name": "hardhat-project",
   "scripts": {
     "build": "rm -rf artifacts && hardhat compile",
-    "compile": "hardhat compile",
     "test": "hardhat test",
     "lint": "solhint 'contracts/**/*.sol' && eslint 'test/**/*.js'",
     "prettier": "prettier --write 'contracts/**/*.sol' 'test/**/*.js' 'scripts/**/*.js' '*.js' && prettier --write 'scripts/**/*.js'"
@@ -38,5 +37,9 @@
     "ts-node": "^10.8.1",
     "typechain": "^5.2.0",
     "typescript": "^4.7.4"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.6.0",
+    "lodash": "^4.17.21"
   }
 }
