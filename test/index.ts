@@ -9,6 +9,7 @@ import {
   getCreate2Address,
   toUtf8Bytes,
   formatEther,
+  parseEther,
 } from "ethers/lib/utils";
 import { Contract } from "typechain";
 import { BigNumberish } from "ethers";
@@ -32,8 +33,8 @@ const calculateOfferAddress = (
   salt: string,
   sellerAddress: string,
   tokenAddress: string,
-  tokenID: number,
-  price: number
+  tokenID: BigNumberish,
+  price: BigNumberish
 ): string =>
   getCreate2Address(
     exhibitionContractAddress,
@@ -85,7 +86,7 @@ describe("CureoExhibition", () => {
       const sellerAddress = sellerWallet.address;
       const tokenAddress = nftInstance.address;
       const tokenID = 12412;
-      const price = 5 * ETH;
+      const price = parseEther("5");
 
       const expectedOfferAddress = calculateOfferAddress(
         exhibitionInstance.address,
@@ -115,7 +116,7 @@ describe("CureoExhibition", () => {
       const sellerAddress = sellerWallet.address;
       const tokenAddress = nftInstance.address;
       const tokenID = 12412;
-      const price = 5 * ETH;
+      const price = parseEther("5");
 
       // give seller a test nft
       await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
@@ -129,6 +130,7 @@ describe("CureoExhibition", () => {
         price
       );
 
+      console.log(`NFT owner originally ${await nftInstance.ownerOf(tokenID)}`);
       console.log(`Accepting exhibition offer at ${offerAddress}`);
 
       // accept the exhibition offer (seller)
@@ -140,6 +142,9 @@ describe("CureoExhibition", () => {
 
       await tx.wait();
 
+      console.log(
+        `NFT owner after accepting ${await nftInstance.ownerOf(tokenID)}`
+      );
       expect(await nftInstance.ownerOf(tokenID)).to.equal(offerAddress);
 
       const sellerInitialBalance = await sellerWallet.getBalance();
@@ -159,6 +164,7 @@ describe("CureoExhibition", () => {
       await tx.wait();
 
       const owner = await nftInstance.ownerOf(tokenID);
+      console.log(`NFT owner after buying ${owner}`);
       expect(owner).to.equal(buyerWallet.address);
 
       const sellerNewBalance = await sellerWallet.getBalance();
@@ -167,6 +173,11 @@ describe("CureoExhibition", () => {
         `Seller's new balance: ${ethStr(sellerNewBalance.toString())}`
       );
       console.log(`Difference ${ethStr(diff)}`);
+
+      // BigNumber comparison should pass but doesn't:
+      //  expect(diff.eq(price)).to.be.true("seller received funds");
+      // use string comparison instead
+      expect(price.toString()).to.equal(diff.toString());
     });
 
     it("seller should be able to refund the nft", async () => {
@@ -177,7 +188,7 @@ describe("CureoExhibition", () => {
       const sellerAddress = sellerWallet.address;
       const tokenAddress = nftInstance.address;
       const tokenID = 12412;
-      const price = 5 * ETH;
+      const price = parseEther("5");
 
       // give seller a test nft
       let tx = await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
@@ -197,7 +208,9 @@ describe("CureoExhibition", () => {
       // accept the exhibition offer (seller)
       tx = await nftInstance
         .connect(sellerWallet)
-        .transferFrom(sellerAddress, offerAddress, tokenID, { gasLimit: defaultGasLimit });
+        .transferFrom(sellerAddress, offerAddress, tokenID, {
+          gasLimit: defaultGasLimit,
+        });
       await tx.wait();
 
       console.log(`Refunding offer at ${offerAddress}`);

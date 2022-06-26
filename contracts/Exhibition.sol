@@ -57,7 +57,7 @@ contract CureoExhibition is Ownable {
     // user and gallery need salt to control any tokens at offerAddress
     function buy(
         bytes32 salt,
-        address sellerAddress,
+        address payable sellerAddress,
         address tokenAddress,
         uint256 tokenID,
         uint256 price
@@ -77,14 +77,16 @@ contract CureoExhibition is Ownable {
             tokenID
             ))) revert ("transferFrom failed");
 
-        (bool success,) = sellerAddress.call{value: price}("");
-        if(!success) revert("failed to pay seller");
+//        (bool success,) = sellerAddress.call{value: price}("");
+//        if(!success) revert("failed to pay seller");
+        sellerAddress.transfer(price);
 
         // don't pay contract storage costs
         offerController.destroy(msg.sender);
     }
 
     // sellerAddress: original seller to refund to
+    // todo: rename to reclaim
     function refund(bytes32 salt, address sellerAddress, address tokenAddress, uint256 tokenID, uint256 price)
     external {
 
