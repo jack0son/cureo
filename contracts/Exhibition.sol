@@ -7,7 +7,7 @@ import "./IERC721";
 contract Gallery {
     string private greeting;
 
-    // Prefix command for differntiating between other kinds of listings
+    // Prefix command for differentiating between other kinds of listings
     bytes32 internal constant CMD_OFFER = keccak256('offer');
 
     constructor(uint256 commissionBIPS) {
@@ -16,75 +16,86 @@ contract Gallery {
 
     function offerAddress(
         bytes32 salt, // entropy - could be signed message from offer accepter
-        address calldata holderAddress,
+        address calldata sellerAddress,
         address calldata tokenAddress,
         uint256 calldata tokenID,
         uint256 calldata price
     ) external view returns (address) {
-        return _offerAddress(_create2Salt(salt, holderAddress, tokenAddress, tokenID, price));
+        return _offerAddress(_create2Salt(salt, sellerAddress, tokenAddress, tokenID, price));
     }
 
     // could inline to reduce gas cost
     function _create2Salt(
         bytes32 salt,
-        address calldata holderAddress,
+        address calldata sellerAddress,
         address calldata tokenAddress,
         uint256 calldata tokenID,
         uint256 calldata price
     ) internal view returns (bytes32)  {
-        return keccak256(abi.encode(abi.encode(CMD_OFFER, salt, holderAddress, tokenAddress, tokenID, price)));
+        return keccak256(abi.encode(abi.encode(CMD_OFFER, salt, sellerAddress, tokenAddress, tokenID, price)));
     }
 
+    // _execute allows the Exhibition contract to call arbitrary contract code at the offerAddress.
+    // Only the
     function _execute(
-        OfferController offerHandler,
+        OfferController offerController,
         address callee,
         uint256 nativeValue,
         bytes memory payload
     ) internal returns (bool) {
-        (bool success, bytes memory returnData) = offerHandler.execute(callee, nativeValue, payload);
+        (bool success, bytes memory returnData) = offerController.execute(callee, nativeValue, payload);
         return success && (returnData.length == uint256(0) || abi.decode(returnData, (bool)));
     }
 
-    // user and gallery need salt to controll any tokens at offerAddress
-    function sell(
+    // user and gallery need salt to control any tokens at offerAddress
+    function buy(
         bytes32 salt,
-        address holderAddress,
+        address sellerAddress,
         address tokenAddress,
         uint256 tokenID,
         uint256 price
     ) {
-        // could use >= because executor will refund the payment
-        require(msg.value == price, "exact payment required");
+        // can use >= because controller contract will refund the payment
+        require(msg.value >= price, "exact payment required");
 
         OfferController offerController = new OfferController{
-        salt: _create2Salt(salt, holderAddress, tokenAddress, tokenID, price)
+        salt: _create2Salt(salt, sellerAddress, tokenAddress, tokenID, price)
         }();
 
         if (!_execute(offerController, tokenAddress, 0, abi.encodeWithSelector(IERC721.selector.transferFrom,
-            address(offerController), msg.sender, amount)))
-            revert ("refund failed");
+            address(offerController),   // from
+            msg.sender,                 // to
+            tokenID
+            ))) revert ("transferFrom failed");
 
+        (success,) = sellerAddress.call{value: price}("");
+        if(!success) revert("failed to pay seller");
+
+        // don't pay contract storage costs
         offerController.destroy(msg.sender);
     }
 
-    // holderAddress: original holder to refund to
-    function refund(bytes32 salt, address holderAddress, address tokenAddress, uint256 tokenID, uint256 price) {
+    // sellerAddress: original seller to refund to
+    function refund(bytes32 salt, address sellerAddress, address tokenAddress, uint256 tokenID, uint256 price) {
 
         // instantiate controller contract to offerAddress address
         OfferController offerController = new OfferController{
-        salt: _create2Salt(salt, holderAddress, tokenAddress, tokenID, price)
+        salt: _create2Salt(salt, sellerAddress, tokenAddress, tokenID, price)
         }();
 
-        // transfer token from offerController to original holer
+        // transfer token from offerController to seller
         if (!_execute(offerController, tokenAddress, 0, abi.encodeWithSelector(IERC721.selector.transferFrom,
-            address(offerController), holderAddress, amount)))
-            revert ('refund failed');
+            address(offerController),   // from
+            sellerAddress,              // to
+            tokenID
+            ))) revert ("refund failed");
+
 
         // NOTE: `offerController` must always be destroyed in the same runtime context that it is deployed.
         offerController.destroy(address(this));
     }
 
-    function _offerAddress(bytes32 create2Salt) internal view returns (address) {
+    function _offerAddress(bytes32 offerSalt) internal view returns (address) {
         /* Convert a hash which is bytes32 to an address which is 20-byte long
         according to https://docs.soliditylang.org/en/v0.8.1/control-structures.html?highlight=create2#salted-contract-creations-create2 */
         return
@@ -94,9 +105,9 @@ contract Gallery {
                     keccak256(
                         abi.encodePacked(
                             bytes1(0xff),
-                            address(this),
-                            create2Salt,
-                            keccak256(abi.encodePacked(type(OfferController).creationCode))
+                            address(this), // creator
+                            offerSalt,
+                            keccak256(abi.encodePacked(type(OfferController).creationCode)) // only offer code
                         )
                     )
                 )
@@ -105,7 +116,7 @@ contract Gallery {
     }
 }
 
-
+// Allow exhibition contract to act as offer address
 contract OfferController {
     error NotOwner();
     error NotContract();
@@ -121,7 +132,7 @@ contract OfferController {
         _;
     }
 
-    // Callee needs to be restritced
+    // Callee needs to be restricted
     function execute(
         address callee,
         uint256 value,
@@ -133,7 +144,7 @@ contract OfferController {
         (success, returnData) = callee.call{ value: value }(data);
     }
 
-    // NOTE: The gallery should always destroy the `OfferHandler` in the same runtime context that deploys it.
+    // NOTE: The gallery should always destroy the `OfferController` in the same runtime context that deploys it.
     function destroy(address etherDestination) external onlyOwner {
         selfdestruct(payable(etherDestination));
     }
