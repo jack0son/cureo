@@ -1,5 +1,12 @@
 {
   "name": "hardhat-project",
+  "scripts": {
+    "build": "rm -rf artifacts && hardhat compile",
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "lint": "solhint 'contracts/**/*.sol' && eslint 'test/**/*.js'",
+    "prettier": "prettier --write 'contracts/**/*.sol' 'test/**/*.js' 'scripts/**/*.js' '*.js' && prettier --write 'scripts/**/*.js'"
+  },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.6",
     "@nomiclabs/hardhat-etherscan": "^3.1.0",
