@@ -8,18 +8,19 @@ import "./Ownable.sol";
 contract CureoExhibition is Ownable {
 
     // TODO
-    // 0. test basics
     // 1. offer period
-    // 2. comission
+    // 2. commission
+    // 3. events
+    // 4. cleanup
 
     // Prefix command for differentiating between future kinds of listings
     bytes32 internal constant CMD_FIXED_OFFER = keccak256('fixed-offer');
 
-    uint256 commissionBIPS;
+    uint256 private commissionPercent;
 
-    constructor() {
-//    constructor(uint256 _commissionBIPS) {
-//        commissionBIPS = _commissionBIPS;
+    constructor(uint256 commissionPercentage_) {
+        require(commissionPercent <= 100, 'invalid commission');
+        commissionPercent = commissionPercentage_;
     }
 
     function offerAddress(
@@ -77,9 +78,14 @@ contract CureoExhibition is Ownable {
             tokenID
             ))) revert ("transferFrom failed");
 
-//        (bool success,) = sellerAddress.call{value: price}("");
-//        if(!success) revert("failed to pay seller");
-        sellerAddress.transfer(price);
+        // todo: use safe math to handle overflow
+        uint256 commission = price * commissionPercent / 100;
+
+        (bool paidCurator,) = owner.call{value: commission}("");
+        if(!paidCurator) revert("failed to pay curator");
+
+        (bool paidSeller,) = sellerAddress.call{value: price - commission}("");
+        if(!paidSeller) revert("failed to pay seller");
 
         // don't pay contract storage costs
         offerController.destroy(msg.sender);

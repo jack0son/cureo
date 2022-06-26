@@ -20,5 +20,6 @@ module.exports = {
       "error",
       { ignores: ["modules"] },
     ],
+    "max-len": [2, { code: 140, ignorePattern: "^import .*" }],
   },
 };

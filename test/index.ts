@@ -12,7 +12,7 @@ import {
   parseEther,
 } from "ethers/lib/utils";
 import { Contract } from "typechain";
-import { BigNumberish } from "ethers";
+import { BigNumber, BigNumberish } from "ethers";
 const NFT = require("../artifacts/contracts/NFT.sol/NFT.json");
 const CureoExhibition = require("../artifacts/contracts/Exhibition.sol/CureoExhibition.json");
 const OfferController = require("../artifacts/contracts/Exhibition.sol/OfferController.json");
@@ -63,8 +63,10 @@ describe("CureoExhibition", () => {
   let exhibitionInstance: any;
   let nftInstance: any;
 
-  beforeEach(async () => {
-    exhibitionInstance = await deployContract(curatorWallet, CureoExhibition);
+  const deployContracts = async (commission: number) => {
+    exhibitionInstance = await deployContract(curatorWallet, CureoExhibition, [
+      commission,
+    ]);
     nftInstance = await deployContract(nftAdmin, NFT);
 
     // const factory = await hardhat.ethers.getContractFactory("NFT");
@@ -73,11 +75,13 @@ describe("CureoExhibition", () => {
     console.log("Waiting contracts deployed...");
     await Promise.all([exhibitionInstance.deployed(), nftInstance.deployed()]);
     console.log("DEPLOYED");
+  };
 
-    // await token.connect(curatorWallet).deposit({ value: 1e9 });
-  });
+  describe("exhibition contract basics", () => {
+    beforeEach(async () => {
+      await deployContracts(0);
+    });
 
-  describe("exhibition contract", () => {
     it("should generate offer address", async () => {
       // const entropy = getRandomID();
       // const salt = formatBytes32String(entropy.toString());
@@ -180,7 +184,7 @@ describe("CureoExhibition", () => {
       expect(price.toString()).to.equal(diff.toString());
     });
 
-    it("seller should be able to refund the nft", async () => {
+    it("seller should be able to reclaim the nft", async () => {
       // const entropy = getRandomID();
       // const salt = formatBytes32String(entropy.toString());
       const salt = formatBytes32String("1");
@@ -225,6 +229,84 @@ describe("CureoExhibition", () => {
 
       const owner = await nftInstance.ownerOf(tokenID);
       expect(owner).to.equal(sellerWallet.address);
+    });
+  });
+
+  describe("exhibition contract parameterised", () => {
+    it("curator should receive commission", async () => {
+      const commissionPercent = 34;
+      await deployContracts(commissionPercent);
+      // const entropy = getRandomID();
+      // const salt = formatBytes32String(entropy.toString());
+      const salt = formatBytes32String("1");
+
+      const sellerAddress = sellerWallet.address;
+      const tokenAddress = nftInstance.address;
+      const tokenID = 12412;
+      const price = parseEther("5");
+
+      // give seller a test nft
+      await nftInstance.connect(nftAdmin).mint(sellerAddress, tokenID);
+
+      // create offer (curator)
+      const offerAddress = await exhibitionInstance.offerAddress(
+        salt,
+        sellerAddress,
+        tokenAddress,
+        tokenID,
+        price
+      );
+
+      console.log(`NFT owner originally ${await nftInstance.ownerOf(tokenID)}`);
+      console.log(`Accepting exhibition offer at ${offerAddress}`);
+
+      // accept the exhibition offer (seller)
+      let tx = await nftInstance
+        .connect(sellerWallet)
+        .transferFrom(sellerAddress, offerAddress, tokenID, {
+          gasLimit: defaultGasLimit,
+        });
+
+      await tx.wait();
+
+      console.log(
+        `NFT owner after accepting ${await nftInstance.ownerOf(tokenID)}`
+      );
+      expect(await nftInstance.ownerOf(tokenID)).to.equal(offerAddress);
+
+      const curatorInitialBalance = await curatorWallet.getBalance();
+      console.log(
+        `Curators's initial balance: ${ethStr(
+          curatorInitialBalance.toString()
+        )}`
+      );
+      console.log(`Purchasing offer at ${offerAddress}`);
+
+      // purchase nft (buyer)
+      tx = await exhibitionInstance
+        .connect(buyerWallet)
+        .buy(salt, sellerAddress, tokenAddress, tokenID, price, {
+          value: price,
+          gasLimit: 1000000,
+        });
+
+      await tx.wait();
+
+      const owner = await nftInstance.ownerOf(tokenID);
+      console.log(`NFT owner after buying ${owner}`);
+      expect(owner).to.equal(buyerWallet.address);
+
+      const curatorNewBalance = await curatorWallet.getBalance();
+      const diff = curatorNewBalance.sub(curatorInitialBalance);
+      console.log(
+        `Curator's new balance: ${ethStr(curatorNewBalance.toString())}`
+      );
+      console.log(`Difference ${ethStr(diff)}`);
+
+      const expectedCommission = price.mul(commissionPercent).div(BigNumber.from(100))
+      console.log(`Expected commission`, expectedCommission.toString());
+
+      expect(expectedCommission.toString()).to.equal(diff.toString());
     });
   });
 });
