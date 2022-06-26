@@ -23,8 +23,9 @@ chai.use(solidity);
 const { expect } = chai;
 
 const ethStr = (val: BigNumberish) => `${formatEther(val)} ETH`;
+const DAY = 60 * 60 * 24;
 
-const ETH = 1e6;
+// Entropy:
 // const getRandomInt = (max: number) => Math.floor(Math.random() * max);
 // const getRandomID = () => id(getRandomInt(1e6).toString());
 
@@ -63,9 +64,10 @@ describe("CureoExhibition", () => {
   let exhibitionInstance: any;
   let nftInstance: any;
 
-  const deployContracts = async (commission: number) => {
+  const deployContracts = async (commission: number, salePeriod: number) => {
     exhibitionInstance = await deployContract(curatorWallet, CureoExhibition, [
       commission,
+      salePeriod,
     ]);
     nftInstance = await deployContract(nftAdmin, NFT);
 
@@ -79,7 +81,7 @@ describe("CureoExhibition", () => {
 
   describe("exhibition contract basics", () => {
     beforeEach(async () => {
-      await deployContracts(0);
+      await deployContracts(0, DAY * 4);
     });
 
     it("should generate offer address", async () => {
@@ -157,6 +159,9 @@ describe("CureoExhibition", () => {
       );
       console.log(`Purchasing offer at ${offerAddress}`);
 
+      // start the sale
+      await exhibitionInstance.connect(curatorWallet).start();
+
       // purchase nft (buyer)
       tx = await exhibitionInstance
         .connect(buyerWallet)
@@ -184,7 +189,7 @@ describe("CureoExhibition", () => {
       expect(price.toString()).to.equal(diff.toString());
     });
 
-    it("seller should be able to reclaim the nft", async () => {
+    it("seller should be able to reclaim the nft if sale not started", async () => {
       // const entropy = getRandomID();
       // const salt = formatBytes32String(entropy.toString());
       const salt = formatBytes32String("1");
@@ -233,9 +238,12 @@ describe("CureoExhibition", () => {
   });
 
   describe("exhibition contract parameterised", () => {
+    it("cannot buy before sale opens", async () => {
+    });
+
     it("curator should receive commission", async () => {
       const commissionPercent = 34;
-      await deployContracts(commissionPercent);
+      await deployContracts(commissionPercent, DAY);
       // const entropy = getRandomID();
       // const salt = formatBytes32String(entropy.toString());
       const salt = formatBytes32String("1");
@@ -274,6 +282,9 @@ describe("CureoExhibition", () => {
       );
       expect(await nftInstance.ownerOf(tokenID)).to.equal(offerAddress);
 
+      // start the sale
+      await exhibitionInstance.connect(curatorWallet).start();
+
       const curatorInitialBalance = await curatorWallet.getBalance();
       console.log(
         `Curators's initial balance: ${ethStr(
@@ -281,6 +292,7 @@ describe("CureoExhibition", () => {
         )}`
       );
       console.log(`Purchasing offer at ${offerAddress}`);
+
 
       // purchase nft (buyer)
       tx = await exhibitionInstance
@@ -303,7 +315,9 @@ describe("CureoExhibition", () => {
       );
       console.log(`Difference ${ethStr(diff)}`);
 
-      const expectedCommission = price.mul(commissionPercent).div(BigNumber.from(100))
+      const expectedCommission = price
+        .mul(commissionPercent)
+        .div(BigNumber.from(100));
       console.log(`Expected commission`, expectedCommission.toString());
 
       expect(expectedCommission.toString()).to.equal(diff.toString());

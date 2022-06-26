@@ -1,5 +1,8 @@
 {
   "name": "hardhat-project",
+   "engines" : { 
+    "node" : ">=16.15.1"
+  },
   "scripts": {
     "build": "rm -rf artifacts && hardhat compile",
     "test": "hardhat test",
