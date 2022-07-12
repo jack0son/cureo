@@ -4,10 +4,11 @@ pragma solidity ^0.8.9;
 import "hardhat/console.sol";
 import "./IERC721.sol";
 import "./Ownable.sol";
+// don't know if you need to import PortalController here if PortalGenerator already imports it
 import "./PortalController.sol";
-import "./Portal.sol";
+import "./PortalGenerator.sol";
 
-contract CureoExhibition is Ownable, Portal {
+contract CureoExhibition is Ownable, PortalGenerator {
 
     // TODO
     // 1. listing period
