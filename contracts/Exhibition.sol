@@ -6,9 +6,9 @@ import "./IERC721.sol";
 import "./Ownable.sol";
 // don't know if you need to import PortalController here if PortalGenerator already imports it
 import "./PortalController.sol";
-import "./PortalGenerator.sol";
+import "./PortalMaster.sol";
 
-contract CureoExhibition is Ownable, PortalGenerator {
+contract CureoExhibition is Ownable, PortalMaster {
 
     // TODO
     // 1. listing period
