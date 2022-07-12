@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.9;
 
-contract ListingController {
+contract PortalController {
     address internal _owner;
 
     // Only should be created by a contract
@@ -26,7 +26,7 @@ contract ListingController {
         (success, returnData) = callee.call{ value: value }(data);
     }
 
-    // NOTE: The gallery should always destroy the `ListingController` in the same runtime context that deploys it.
+    // NOTE: The gallery should always destroy the `PortalController` in the same runtime context that deploys it.
     function destroy(address etherDestination) external onlyOwner {
         selfdestruct(payable(etherDestination));
     }
