@@ -122,7 +122,8 @@ contract CureoExhibition is Ownable, PortalGenerator {
         address sellerAddress, 
         address tokenAddress, 
         uint256 tokenID, 
-        uint256 price)
+        uint256 price
+    )
     external {
         require(!started || block.timestamp > startTime + salePeriod, "exhibition in progress");
 
