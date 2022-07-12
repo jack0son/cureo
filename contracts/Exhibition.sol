@@ -85,6 +85,26 @@ contract CureoExhibition is Ownable {
         return success && (returnData.length == uint256(0) || abi.decode(returnData, (bool)));
     }
 
+    function _listingAddress(bytes32 listingSalt) internal view returns (address) {
+        /* Convert a hash which is bytes32 to an address which is 20-byte long
+        according to https://docs.soliditylang.org/en/v0.8.1/control-structures.html?highlight=create2#salted-contract-creations-create2 */
+        return
+        address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff),
+                            address(this), // creator
+                            listingSalt,
+                            keccak256(abi.encodePacked(type(ListingController).creationCode)) // only listing code
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     // user and gallery need salt to control any tokens at listingAddress
     function buy(
         bytes32 salt,
@@ -99,7 +119,7 @@ contract CureoExhibition is Ownable {
         // are they only able to pay using ETH? Should I try adding ERC20 functionality too?
         require(msg.value >= price, "insufficient payment");
 
-        // compress buy variables into a calldata object
+        // build calldata object for IERC721.transferFrom()
         bytes memory data = abi.encode(sellerAddress, tokenAddress, tokenID, price);
 
         ListingController listingController = new ListingController{
@@ -158,26 +178,6 @@ contract CureoExhibition is Ownable {
 
         // NOTE: `listingController` must always be destroyed in the same runtime context that it is deployed.
         listingController.destroy(address(this));
-    }
-
-    function _listingAddress(bytes32 listingSalt) internal view returns (address) {
-        /* Convert a hash which is bytes32 to an address which is 20-byte long
-        according to https://docs.soliditylang.org/en/v0.8.1/control-structures.html?highlight=create2#salted-contract-creations-create2 */
-        return
-        address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xff),
-                            address(this), // creator
-                            listingSalt,
-                            keccak256(abi.encodePacked(type(ListingController).creationCode)) // only listing code
-                        )
-                    )
-                )
-            )
-        );
     }
 }
 
