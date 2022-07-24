@@ -60,7 +60,7 @@ contract CureoExhibition is Ownable, PortalMaster {
             tokenID, 
             price
         );
-        return _portalAddress(_create2Salt(salt, data));
+        return _portalAddress(_create2Salt(salt, data /*Portal_params*/));
     }
 
     // user and gallery need salt to control any tokens at listingAddress
@@ -82,7 +82,7 @@ contract CureoExhibition is Ownable, PortalMaster {
         bytes memory data = abi.encode(sellerAddress, tokenAddress, tokenID, price);
 
         PortalController portalController = new PortalController{
-        salt: _create2Salt(salt, data)
+        salt: _create2Salt(salt, data /*Portal_params*/)
         }();
 
         // buy parameters must match listing parameters used to create listing address for execution
@@ -131,7 +131,7 @@ contract CureoExhibition is Ownable, PortalMaster {
 
         // instantiate controller contract to listingAddress address
         PortalController portalController = new PortalController{
-        salt: _create2Salt(salt, data)
+        salt: _create2Salt(salt, data /*Portal_params*/)
         }();
 
         // transfer token from portalController to seller
